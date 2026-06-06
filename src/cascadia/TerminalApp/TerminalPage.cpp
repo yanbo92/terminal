@@ -588,29 +588,6 @@ namespace winrt::TerminalApp::implementation
             // tabs start at the top of the vertical strip.
             _tabView.VerticalAlignment(WUX::VerticalAlignment::Top);
 
-            // Bug fix: In vertical mode, give the "new tab" button a text
-            // label ("New tab") next to its "+" icon so it reads naturally
-            // in the wider sidebar.
-            if (_newTabButton)
-            {
-                auto panel = WUX::Controls::StackPanel();
-                panel.Orientation(WUX::Controls::Orientation::Horizontal);
-                panel.Spacing(8);
-
-                WUX::Controls::FontIcon plusIcon{};
-                plusIcon.Glyph(L"\uE710");
-                plusIcon.FontFamily(WUX::Media::FontFamily{ L"Segoe Fluent Icons, Segoe MDL2 Assets" });
-                plusIcon.FontSize(12);
-                panel.Children().Append(plusIcon);
-
-                WUX::Controls::TextBlock label{};
-                label.Text(RS_(L"TabNewButtonText"));
-                label.VerticalAlignment(WUX::VerticalAlignment::Center);
-                label.FontFamily(WUX::Media::FontFamily{ L"Segoe UI" });
-                panel.Children().Append(label);
-
-                _newTabButton.Content(panel);
-            }
             break;
         }
         }
