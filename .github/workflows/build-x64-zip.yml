@@ -140,3 +140,39 @@ jobs:
         with:
           name: ${{ steps.package.outputs.zip_name }}
           path: ${{ steps.package.outputs.zip_path }}
+
+      - name: Create x64 symbols ZIP
+        id: symbols
+        shell: pwsh
+        run: |
+          $buildRoot = (Resolve-Path 'bin\x64\Release').Path
+          $stagingDir = Join-Path $buildRoot '_symbols'
+          $zipPath = Join-Path $buildRoot 'x64-symbols.zip'
+
+          Remove-Item -Recurse -Force $stagingDir -ErrorAction Ignore
+          New-Item -ItemType Directory -Path $stagingDir | Out-Null
+
+          $pdbFiles = Get-ChildItem $buildRoot -Recurse -Filter '*.pdb' |
+            Where-Object { $_.FullName -notlike "$stagingDir*" }
+          if (-not $pdbFiles) {
+            throw 'Could not find any PDB files under bin\x64\Release.'
+          }
+
+          foreach ($pdb in $pdbFiles) {
+            $relativePath = [System.IO.Path]::GetRelativePath($buildRoot, $pdb.FullName)
+            $destination = Join-Path $stagingDir $relativePath
+            $destinationDir = Split-Path -Parent $destination
+            New-Item -ItemType Directory -Path $destinationDir -Force | Out-Null
+            Copy-Item $pdb.FullName $destination
+          }
+
+          Compress-Archive -Path (Join-Path $stagingDir '*') -DestinationPath $zipPath -Force
+
+          "zip_path=$zipPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "zip_name=x64-symbols.zip" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Upload x64 symbols artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.symbols.outputs.zip_name }}
+          path: ${{ steps.symbols.outputs.zip_path }}
