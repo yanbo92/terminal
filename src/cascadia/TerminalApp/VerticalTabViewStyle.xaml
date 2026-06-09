@@ -25,6 +25,7 @@
         <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
         <Setter Property="ScrollViewer.HorizontalScrollMode" Value="Disabled" />
         <Setter Property="ScrollViewer.VerticalScrollMode" Value="Enabled" />
+        <Setter Property="ScrollViewer.BringIntoViewOnFocusChange" Value="False" />
         <Setter Property="ScrollViewer.IsHorizontalRailEnabled" Value="False" />
         <Setter Property="ScrollViewer.IsVerticalRailEnabled" Value="True" />
         <Setter Property="SingleSelectionFollowsFocus" Value="False" />

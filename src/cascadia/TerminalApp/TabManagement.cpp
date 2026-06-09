@@ -157,6 +157,11 @@ namespace winrt::TerminalApp::implementation
         _UpdateTabIcon(*newTabImpl);
 
         tabViewItem.PointerPressed({ this, &TerminalPage::_OnTabPointerPressed });
+        if (_tabPosition == Settings::Model::TabPosition::Left ||
+            _tabPosition == Settings::Model::TabPosition::Right)
+        {
+            tabViewItem.BringIntoViewRequested({ this, &TerminalPage::_OnTabBringIntoViewRequested });
+        }
 
         // When the tab requests close, try to close it (prompt for approval, if required)
         newTabImpl->CloseRequested([weakTab, weakThis{ get_weak() }](auto&& /*s*/, auto&& /*e*/) {
@@ -991,6 +996,19 @@ namespace winrt::TerminalApp::implementation
         if (tab.Content())
         {
             _HandleCloseTabRequested(tab);
+        }
+    }
+
+    void TerminalPage::_OnTabBringIntoViewRequested(const IInspectable& /*sender*/, const WUX::BringIntoViewRequestedEventArgs& e)
+    {
+        if (_tabPosition == Settings::Model::TabPosition::Left ||
+            _tabPosition == Settings::Model::TabPosition::Right)
+        {
+            // WinUI's TabView still issues horizontal-style bring-into-view requests
+            // from selection/focus changes. Side tabs don't need that auto-scroll,
+            // and suppressing it avoids layout churn while tabs are rapidly added
+            // and removed.
+            e.Handled(true);
         }
     }
 

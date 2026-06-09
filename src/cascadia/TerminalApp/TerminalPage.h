@@ -462,6 +462,7 @@ namespace winrt::TerminalApp::implementation
         PointerCaptureLost_revoker _tabItemMiddleClickPointerCaptureLost;
         void _OnTabPointerPressed(const IInspectable& sender, const Windows::UI::Xaml::Input::PointerRoutedEventArgs& eventArgs);
         safe_void_coroutine _OnTabPointerReleasedCloseTab(IInspectable sender);
+        void _OnTabBringIntoViewRequested(const IInspectable& sender, const Windows::UI::Xaml::BringIntoViewRequestedEventArgs& eventArgs);
 
         void _OnTabSelectionChanged(const IInspectable& sender, const Windows::UI::Xaml::Controls::SelectionChangedEventArgs& eventArgs);
         void _OnTabItemsChanged(const IInspectable& sender, const Windows::Foundation::Collections::IVectorChangedEventArgs& eventArgs);
