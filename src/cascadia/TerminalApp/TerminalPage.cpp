@@ -583,10 +583,10 @@ namespace winrt::TerminalApp::implementation
                 }
             }
 
-            // Bug fix: TabRowControl.xaml sets VerticalAlignment="Bottom" on
-            // the TabView for the default horizontal mode. Override to Top so
-            // tabs start at the top of the vertical strip.
-            _tabView.VerticalAlignment(WUX::VerticalAlignment::Top);
+            // TabRowControl.xaml pins the default horizontal TabView to the
+            // bottom edge. Side tabs need to stay stretched so the TabListView
+            // owns a stable viewport and the footer button stays anchored.
+            _tabView.VerticalAlignment(WUX::VerticalAlignment::Stretch);
 
             break;
         }
@@ -663,6 +663,7 @@ namespace winrt::TerminalApp::implementation
         _tabView.SelectionChanged({ this, &TerminalPage::_OnTabSelectionChanged });
         _tabView.TabCloseRequested({ this, &TerminalPage::_OnTabCloseRequested });
         _tabView.TabItemsChanged({ this, &TerminalPage::_OnTabItemsChanged });
+        _tabView.BringIntoViewRequested({ this, &TerminalPage::_OnTabBringIntoViewRequested });
 
         _tabView.TabDragStarting({ this, &TerminalPage::_onTabDragStarting });
         _tabView.TabStripDragOver({ this, &TerminalPage::_onTabStripDragOver });

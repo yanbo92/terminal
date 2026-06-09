@@ -225,7 +225,7 @@
                                 <!--  Tab title  -->
                                 <ContentPresenter x:Name="ContentPresenter"
                                                   Grid.Column="1"
-                                                  HorizontalAlignment="Left"
+                                                  HorizontalAlignment="Stretch"
                                                   VerticalAlignment="Center"
                                                   Content="{TemplateBinding Header}"
                                                   ContentTemplate="{TemplateBinding HeaderTemplate}"

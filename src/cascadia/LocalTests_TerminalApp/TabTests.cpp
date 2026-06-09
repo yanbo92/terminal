@@ -75,6 +75,7 @@ namespace TerminalAppLocalTests
         TEST_METHOD(CreateTerminalMuxXamlType);
 
         TEST_METHOD(CreateTerminalPage);
+        TEST_METHOD(SideTabsCanKeepCreatingTabs);
 
         TEST_METHOD(TryDuplicateBadTab);
         TEST_METHOD(TryDuplicateBadPane);
@@ -343,6 +344,85 @@ namespace TerminalAppLocalTests
             VERIFY_ARE_EQUAL(1u, page->_tabs.Size());
         });
         VERIFY_SUCCEEDED(result);
+    }
+
+    void TabTests::SideTabsCanKeepCreatingTabs()
+    {
+        static constexpr std::wstring_view settingsJson{ LR"(
+        {
+            "defaultProfile": "{6239a42c-1111-49a3-80bd-e8fdd045185c}",
+            "showTabsInTitlebar": false,
+            "theme": "leftTabs",
+            "themes": [
+                {
+                    "name": "leftTabs",
+                    "window":
+                    {
+                        "tabPosition": "left"
+                    }
+                }
+            ],
+            "profiles": [
+                {
+                    "name" : "profile0",
+                    "guid": "{6239a42c-1111-49a3-80bd-e8fdd045185c}",
+                    "historySize": 1
+                }
+            ]
+        })" };
+
+        CascadiaSettings settings{ settingsJson, {} };
+        VERIFY_IS_NOT_NULL(settings);
+
+        winrt::com_ptr<winrt::TerminalApp::implementation::TerminalPage> page{ nullptr };
+        _initializeTerminalPage(page, settings);
+
+        TestOnUIThread([&page]() {
+            VERIFY_ARE_EQUAL(TabPosition::Left, page->_tabPosition);
+            VERIFY_ARE_EQUAL(VerticalAlignment::Stretch, page->_tabView.VerticalAlignment());
+        });
+
+        TestOnUIThread([&page]() {
+            for (auto i = 0; i < 3; ++i)
+            {
+                page->_OpenNewTerminalViaDropdown(NewTerminalArgs{});
+
+                const auto focused = page->_GetFocusedTabIndex();
+                VERIFY_IS_TRUE(focused.has_value());
+                auto focusedTab = page->_GetTabImpl(page->_tabs.GetAt(focused.value()));
+                focusedTab->SetTabText(i % 2 == 0 ? L"Bash" : L"/d");
+            }
+            VERIFY_ARE_EQUAL(4u, page->_tabs.Size());
+        });
+
+        TestOnUIThread([&page]() {
+            while (page->_tabs.Size() > 1)
+            {
+                page->_tabs.GetAt(page->_tabs.Size() - 1).Close();
+            }
+            VERIFY_ARE_EQUAL(1u, page->_tabs.Size());
+        });
+
+        TestOnUIThread([&page]() {
+            for (auto i = 0; i < 3; ++i)
+            {
+                page->_OpenNewTerminalViaDropdown(NewTerminalArgs{});
+
+                const auto focused = page->_GetFocusedTabIndex();
+                VERIFY_IS_TRUE(focused.has_value());
+                auto focusedTab = page->_GetTabImpl(page->_tabs.GetAt(focused.value()));
+                focusedTab->SetTabText(i % 2 == 0 ? L"Bash" : L"/d");
+            }
+            VERIFY_ARE_EQUAL(4u, page->_tabs.Size());
+            VERIFY_ARE_EQUAL(VerticalAlignment::Stretch, page->_tabView.VerticalAlignment());
+        });
+
+        TestOnUIThread([&page]() {
+            page->_OpenNewTerminalViaDropdown(NewTerminalArgs{});
+            auto focusedTab = page->_GetTabImpl(page->_tabs.GetAt(page->_GetFocusedTabIndex().value()));
+            focusedTab->SetTabText(L"PowerShell");
+            VERIFY_ARE_EQUAL(5u, page->_tabs.Size());
+        });
     }
 
     void TabTests::TryDuplicateBadTab()
