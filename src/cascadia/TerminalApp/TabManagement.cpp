@@ -1025,7 +1025,14 @@ namespace winrt::TerminalApp::implementation
                 _updateAllTabCloseButtons();
             }
 
-            tab.TabViewItem().StartBringIntoView();
+            // WinUI's bring-into-view behavior assumes the default horizontal
+            // tab strip. Skip our explicit request for left/right side tabs to
+            // avoid re-entrant layout/scroll churn when selecting a new tab.
+            if (_tabPosition != Settings::Model::TabPosition::Left &&
+                _tabPosition != Settings::Model::TabPosition::Right)
+            {
+                tab.TabViewItem().StartBringIntoView();
+            }
 
             // Raise an event that our title changed
             TitleChanged.raise(*this, nullptr);
