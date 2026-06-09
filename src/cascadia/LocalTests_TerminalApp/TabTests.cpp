@@ -348,6 +348,8 @@ namespace TerminalAppLocalTests
 
     void TabTests::SideTabsCanKeepCreatingTabs()
     {
+        static constexpr std::wstring_view longTitle{ L"PowerShell 7.5 Preview - /Users/example/projects/windows-terminal/src/cascadia/TerminalApp/very/long/path/that/should/not/expand/the/side/tab/strip" };
+
         static constexpr std::wstring_view settingsJson{ LR"(
         {
             "defaultProfile": "{6239a42c-1111-49a3-80bd-e8fdd045185c}",
@@ -418,7 +420,43 @@ namespace TerminalAppLocalTests
         });
 
         TestOnUIThread([&page]() {
-            page->_OpenNewTerminalViaDropdown(NewTerminalArgs{});
+            for (uint32_t i = 0; i < page->_tabs.Size(); ++i)
+            {
+                auto tab = page->_tabs.GetAt(i);
+                auto tabImpl = page->_GetTabImpl(tab);
+                tabImpl->SetTabText(winrt::hstring{ longTitle });
+            }
+        });
+
+        TestOnUIThread([&page]() {
+            const auto stripWidth = page->_tabView.ActualWidth();
+            VERIFY_IS_TRUE(stripWidth > 0);
+
+            for (uint32_t i = 0; i < page->_tabs.Size(); ++i)
+            {
+                const auto tab = page->_tabs.GetAt(i);
+                const auto tabItem = tab.TabViewItem();
+                const auto header = tabItem.Header().as<winrt::TerminalApp::TabHeaderControl>();
+
+                VERIFY_ARE_EQUAL(HorizontalAlignment::Stretch, tabItem.HorizontalAlignment());
+                VERIFY_ARE_EQUAL(HorizontalAlignment::Stretch, header.HorizontalAlignment());
+                VERIFY_IS_TRUE(tabItem.ActualWidth() <= stripWidth + 0.01);
+            }
+        });
+
+        ::details::Event queuedNewTabCreated;
+        TestOnUIThread([&page, &queuedNewTabCreated]() {
+            const auto tabsBeforeClick = page->_tabs.Size();
+            page->_HandleNewTabButtonClick();
+            VERIFY_ARE_EQUAL(tabsBeforeClick, page->_tabs.Size());
+
+            page->Dispatcher().RunAsync(CoreDispatcherPriority::Low, [&queuedNewTabCreated]() {
+                queuedNewTabCreated.Set();
+            });
+        });
+        VERIFY_SUCCEEDED(queuedNewTabCreated.Wait());
+
+        TestOnUIThread([&page]() {
             auto focusedTab = page->_GetTabImpl(page->_tabs.GetAt(page->_GetFocusedTabIndex().value()));
             focusedTab->SetTabText(L"PowerShell");
             VERIFY_ARE_EQUAL(5u, page->_tabs.Size());

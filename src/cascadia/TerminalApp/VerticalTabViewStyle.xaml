@@ -18,6 +18,8 @@
     -->
     <Style x:Key="VerticalTabViewListViewStyle"
            TargetType="primitives:TabViewListView">
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="TabNavigation" Value="Once" />
         <Setter Property="IsItemClickEnabled" Value="True" />
         <Setter Property="IsSwipeEnabled" Value="False" />
@@ -31,11 +33,7 @@
         <Setter Property="SingleSelectionFollowsFocus" Value="False" />
         <Setter Property="ItemContainerTransitions">
             <Setter.Value>
-                <TransitionCollection>
-                    <AddDeleteThemeTransition />
-                    <ContentThemeTransition />
-                    <ReorderThemeTransition />
-                </TransitionCollection>
+                <TransitionCollection />
             </Setter.Value>
         </Setter>
         <Setter Property="ItemsPanel">
@@ -110,7 +108,9 @@
     -->
     <Style x:Key="VerticalTabViewItemStyle"
            TargetType="mux:TabViewItem">
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="MinWidth" Value="0" />
         <Setter Property="UseSystemFocusVisuals" Value="{StaticResource UseSystemFocusVisuals}" />
         <Setter Property="Padding" Value="8,6,8,6" />
         <Setter Property="Template">

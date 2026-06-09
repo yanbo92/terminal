@@ -213,6 +213,44 @@ namespace clipboard
     }
 } // namespace clipboard
 
+namespace
+{
+    struct DropdownModifierState
+    {
+        bool altPressed{ false };
+        bool shiftPressed{ false };
+        bool ctrlPressed{ false };
+        bool debugTap{ false };
+    };
+
+    DropdownModifierState _captureDropdownModifierState()
+    {
+        const auto window = CoreWindow::GetForCurrentThread();
+        const auto rAltState = window.GetKeyState(VirtualKey::RightMenu);
+        const auto lAltState = window.GetKeyState(VirtualKey::LeftMenu);
+        const auto shiftState = window.GetKeyState(VirtualKey::Shift);
+        const auto rShiftState = window.GetKeyState(VirtualKey::RightShift);
+        const auto lShiftState = window.GetKeyState(VirtualKey::LeftShift);
+        const auto ctrlState = window.GetKeyState(VirtualKey::Control);
+        const auto rCtrlState = window.GetKeyState(VirtualKey::RightControl);
+        const auto lCtrlState = window.GetKeyState(VirtualKey::LeftControl);
+
+        DropdownModifierState state;
+        state.altPressed = WI_IsFlagSet(lAltState, CoreVirtualKeyStates::Down) ||
+                           WI_IsFlagSet(rAltState, CoreVirtualKeyStates::Down);
+        state.shiftPressed = WI_IsFlagSet(shiftState, CoreVirtualKeyStates::Down) ||
+                             WI_IsFlagSet(lShiftState, CoreVirtualKeyStates::Down) ||
+                             WI_IsFlagSet(rShiftState, CoreVirtualKeyStates::Down);
+        state.ctrlPressed = WI_IsFlagSet(ctrlState, CoreVirtualKeyStates::Down) ||
+                            WI_IsFlagSet(rCtrlState, CoreVirtualKeyStates::Down) ||
+                            WI_IsFlagSet(lCtrlState, CoreVirtualKeyStates::Down);
+        state.debugTap = WI_IsFlagSet(lAltState, CoreVirtualKeyStates::Down) &&
+                         WI_IsFlagSet(rAltState, CoreVirtualKeyStates::Down);
+
+        return state;
+    }
+}
+
 namespace winrt::TerminalApp::implementation
 {
     TerminalPage::TerminalPage(TerminalApp::WindowProperties properties, const TerminalApp::ContentManager& manager) :
@@ -656,7 +694,7 @@ namespace winrt::TerminalApp::implementation
                     TraceLoggingKeyword(MICROSOFT_KEYWORD_MEASURES),
                     TelemetryPrivacyDataTag(PDT_ProductAndServiceUsage));
 
-                page->_OpenNewTerminalViaDropdown(NewTerminalArgs());
+                page->_HandleNewTabButtonClick();
             }
         });
         _newTabButton.Drop({ get_weak(), &TerminalPage::_NewTerminalByDrop });
@@ -1614,33 +1652,35 @@ namespace winrt::TerminalApp::implementation
         _newTabButton.Flyout().ShowAt(_newTabButton);
     }
 
+    void TerminalPage::_HandleNewTabButtonClick()
+    {
+        const auto modifierState = _captureDropdownModifierState();
+
+        if (_tabPosition == Settings::Model::TabPosition::Left ||
+            _tabPosition == Settings::Model::TabPosition::Right)
+        {
+            Dispatcher().RunAsync(CoreDispatcherPriority::Low, [weakThis = get_weak(), modifierState]() {
+                if (auto page{ weakThis.get() })
+                {
+                    page->_OpenNewTerminalViaDropdown(NewTerminalArgs{}, modifierState.altPressed, modifierState.shiftPressed, modifierState.ctrlPressed, modifierState.debugTap);
+                }
+            });
+        }
+        else
+        {
+            _OpenNewTerminalViaDropdown(NewTerminalArgs{}, modifierState.altPressed, modifierState.shiftPressed, modifierState.ctrlPressed, modifierState.debugTap);
+        }
+    }
+
     void TerminalPage::_OpenNewTerminalViaDropdown(const NewTerminalArgs newTerminalArgs)
     {
-        // if alt is pressed, open a pane
-        const auto window = CoreWindow::GetForCurrentThread();
-        const auto rAltState = window.GetKeyState(VirtualKey::RightMenu);
-        const auto lAltState = window.GetKeyState(VirtualKey::LeftMenu);
-        const auto altPressed = WI_IsFlagSet(lAltState, CoreVirtualKeyStates::Down) ||
-                                WI_IsFlagSet(rAltState, CoreVirtualKeyStates::Down);
+        const auto modifierState = _captureDropdownModifierState();
+        _OpenNewTerminalViaDropdown(newTerminalArgs, modifierState.altPressed, modifierState.shiftPressed, modifierState.ctrlPressed, modifierState.debugTap);
+    }
 
-        const auto shiftState{ window.GetKeyState(VirtualKey::Shift) };
-        const auto rShiftState = window.GetKeyState(VirtualKey::RightShift);
-        const auto lShiftState = window.GetKeyState(VirtualKey::LeftShift);
-        const auto shiftPressed{ WI_IsFlagSet(shiftState, CoreVirtualKeyStates::Down) ||
-                                 WI_IsFlagSet(lShiftState, CoreVirtualKeyStates::Down) ||
-                                 WI_IsFlagSet(rShiftState, CoreVirtualKeyStates::Down) };
-
-        const auto ctrlState{ window.GetKeyState(VirtualKey::Control) };
-        const auto rCtrlState = window.GetKeyState(VirtualKey::RightControl);
-        const auto lCtrlState = window.GetKeyState(VirtualKey::LeftControl);
-        const auto ctrlPressed{ WI_IsFlagSet(ctrlState, CoreVirtualKeyStates::Down) ||
-                                WI_IsFlagSet(rCtrlState, CoreVirtualKeyStates::Down) ||
-                                WI_IsFlagSet(lCtrlState, CoreVirtualKeyStates::Down) };
-
-        // Check for DebugTap
-        auto debugTap = this->_settings.GlobalSettings().DebugFeaturesEnabled() &&
-                        WI_IsFlagSet(lAltState, CoreVirtualKeyStates::Down) &&
-                        WI_IsFlagSet(rAltState, CoreVirtualKeyStates::Down);
+    void TerminalPage::_OpenNewTerminalViaDropdown(const NewTerminalArgs newTerminalArgs, bool altPressed, bool shiftPressed, bool ctrlPressed, bool debugTap)
+    {
+        debugTap = _settings.GlobalSettings().DebugFeaturesEnabled() && debugTap;
 
         const auto dispatchToElevatedWindow = ctrlPressed && !IsRunningElevated();
 

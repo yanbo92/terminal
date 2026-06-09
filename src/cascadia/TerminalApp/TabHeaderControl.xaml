@@ -11,10 +11,14 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:mtu="using:Microsoft.Terminal.UI"
              xmlns:mux="using:Microsoft.UI.Xaml.Controls"
+             MinWidth="0"
              MinHeight="16"
+             HorizontalAlignment="Stretch"
              mc:Ignorable="d">
 
-    <Grid x:Name="HeaderGrid">
+    <Grid x:Name="HeaderGrid"
+          MinWidth="0"
+          HorizontalAlignment="Stretch">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto" />
             <ColumnDefinition Width="Auto" />
