@@ -17,13 +17,6 @@
         here, not Transparent. This is load bearing, for showTabsInTitlebar=false.
     -->
 
-    <!--
-        Set the padding to -1 on the bottom. This prevents a small 1px gap that
-        can appear on 150% scale displays between the tab item and the content.
-        The 1 on top helps keep the tab the correct relative height within the
-        tab row.
-    -->
-
     <mux:TabView x:Name="TabView"
                  VerticalAlignment="Bottom"
                  HorizontalContentAlignment="Stretch"
@@ -127,8 +120,6 @@
                                                     ResourceKey="TabViewButtonForegroundPointerOver" />
                                 </ResourceDictionary>
                             </ResourceDictionary.ThemeDictionaries>
-                            <x:Double x:Key="SplitButtonPrimaryButtonSize">31</x:Double>
-                            <x:Double x:Key="SplitButtonSecondaryButtonSize">31</x:Double>
                         </ResourceDictionary>
                     </mux:SplitButton.Resources>
                 </mux:SplitButton>
