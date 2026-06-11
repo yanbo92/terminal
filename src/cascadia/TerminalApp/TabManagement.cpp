@@ -236,7 +236,15 @@ namespace winrt::TerminalApp::implementation
     // - Handle changes to the tab width set by the user
     void TerminalPage::_UpdateTabWidthMode()
     {
-        _tabView.TabWidthMode(_settings.GlobalSettings().TabWidthMode());
+        if (_tabPosition == Settings::Model::TabPosition::Left ||
+            _tabPosition == Settings::Model::TabPosition::Right)
+        {
+            _tabView.TabWidthMode(winrt::Microsoft::UI::Xaml::Controls::TabViewWidthMode::SizeToContent);
+        }
+        else
+        {
+            _tabView.TabWidthMode(_settings.GlobalSettings().TabWidthMode());
+        }
     }
 
     // Method Description:
