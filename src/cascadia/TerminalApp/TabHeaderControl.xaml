@@ -18,7 +18,7 @@
 
     <Grid x:Name="HeaderGrid"
           MinWidth="0"
-          HorizontalAlignment="Stretch">
+          HorizontalAlignment="Left">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto" />
             <ColumnDefinition Width="Auto" />
@@ -78,7 +78,7 @@
         <TextBlock x:Name="HeaderTextBlock"
                    Grid.Column="6"
                    MinWidth="0"
-                   HorizontalAlignment="Stretch"
+                   HorizontalAlignment="Left"
                    VerticalAlignment="Center"
                    TextTrimming="CharacterEllipsis"
                    TextWrapping="NoWrap"
