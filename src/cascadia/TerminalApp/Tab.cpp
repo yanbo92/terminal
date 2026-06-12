@@ -27,6 +27,17 @@ namespace winrt
 
 #define ASSERT_UI_THREAD() assert(TabViewItem().Dispatcher().HasThreadAccess())
 
+namespace
+{
+    void _DebugTabControlEvent(std::wstring_view event, uint32_t tabIndex)
+    {
+        OutputDebugStringW(fmt::format(FMT_COMPILE(L"[TabControls] {} tabIndex={}\n"),
+                                       event,
+                                       tabIndex)
+                               .c_str());
+    }
+}
+
 namespace winrt::TerminalApp::implementation
 {
     Tab::Tab(std::shared_ptr<Pane> rootPane)
@@ -937,6 +948,7 @@ namespace winrt::TerminalApp::implementation
     {
         ASSERT_UI_THREAD();
 
+        _DebugTabControlEvent(L"tab-close-called", _TabViewIndex);
         Closed.raise(nullptr, nullptr);
     }
 
@@ -1584,6 +1596,7 @@ namespace winrt::TerminalApp::implementation
         closeTabMenuItem.Click([weakThis](auto&&, auto&&) {
             if (auto tab{ weakThis.get() })
             {
+                _DebugTabControlEvent(L"tab-context-close-click", tab->_TabViewIndex);
                 tab->CloseRequested.raise(nullptr, nullptr);
             }
         });

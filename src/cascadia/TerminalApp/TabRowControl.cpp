@@ -31,6 +31,7 @@ namespace winrt::TerminalApp::implementation
     // <unused>
     void TabRowControl::OnNewTabButtonClick(const IInspectable&, const Controls::SplitButtonClickEventArgs&)
     {
+        OutputDebugStringW(L"[TabControls] new-tab-button-click-xaml\n");
     }
 
     // Method Description:
@@ -39,6 +40,7 @@ namespace winrt::TerminalApp::implementation
     // <unused>
     void TabRowControl::OnNewTabButtonDrop(const IInspectable&, const winrt::Windows::UI::Xaml::DragEventArgs&)
     {
+        OutputDebugStringW(L"[TabControls] new-tab-button-drop-xaml\n");
     }
 
     // Method Description:

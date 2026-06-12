@@ -324,6 +324,7 @@ namespace winrt::TerminalApp::implementation
         void _OpenNewTabDropdown();
         HRESULT _OpenNewTab(const Microsoft::Terminal::Settings::Model::INewContentArgs& newContentArgs);
         TerminalApp::Tab _CreateNewTabFromPane(std::shared_ptr<Pane> pane, uint32_t insertPosition = -1);
+        void _DebugTabControlEvent(std::wstring_view event) const;
 
         std::wstring _evaluatePathForCwd(std::wstring_view path);
 

@@ -64,6 +64,7 @@ namespace winrt::TerminalApp::implementation
     HRESULT TerminalPage::_OpenNewTab(const INewContentArgs& newContentArgs)
     try
     {
+        _DebugTabControlEvent(L"open-new-tab-begin");
         if (const auto& newTerminalArgs{ newContentArgs.try_as<NewTerminalArgs>() })
         {
             const auto profile{ _settings.GetProfileForArgs(newTerminalArgs) };
@@ -71,6 +72,7 @@ namespace winrt::TerminalApp::implementation
             // than the number of available profiles.
             if (!profile)
             {
+                _DebugTabControlEvent(L"open-new-tab-missing-profile");
                 return S_FALSE;
             }
             const auto settings{ Settings::TerminalSettings::CreateWithNewTerminalArgs(_settings, newTerminalArgs) };
@@ -78,6 +80,7 @@ namespace winrt::TerminalApp::implementation
             // Try to handle auto-elevation
             if (_maybeElevate(newTerminalArgs, settings, profile))
             {
+                _DebugTabControlEvent(L"open-new-tab-elevated-handoff");
                 return S_OK;
             }
             // We can't go in the other direction (elevated->unelevated)
@@ -87,7 +90,9 @@ namespace winrt::TerminalApp::implementation
 
         // This call to _MakePane won't return nullptr, we already checked that
         // case above with the _maybeElevate call.
+        _DebugTabControlEvent(L"open-new-tab-create-pane");
         _CreateNewTabFromPane(_MakePane(newContentArgs, nullptr));
+        _DebugTabControlEvent(L"open-new-tab-complete");
         return S_OK;
     }
     CATCH_RETURN();
@@ -115,9 +120,12 @@ namespace winrt::TerminalApp::implementation
             }
         }
 
+        _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"initialize-tab-start index={}"), insertPosition));
+
         // Add the new tab to the list of our tabs.
         _tabs.InsertAt(insertPosition, *newTabImpl);
         _mruTabs.Append(*newTabImpl);
+        _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"initialize-tab-model-insert index={}"), insertPosition));
 
         newTabImpl->SetDispatch(*_actionDispatch);
         newTabImpl->SetActionMap(_settings.ActionMap());
@@ -152,9 +160,11 @@ namespace winrt::TerminalApp::implementation
 
         auto tabViewItem = newTabImpl->TabViewItem();
         _tabView.TabItems().InsertAt(insertPosition, tabViewItem);
+        _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"initialize-tab-view-insert index={}"), insertPosition));
 
         // Set this tab's icon to the icon from the content
         _UpdateTabIcon(*newTabImpl);
+        _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"initialize-tab-icon-updated index={}"), insertPosition));
 
         tabViewItem.PointerPressed({ this, &TerminalPage::_OnTabPointerPressed });
 
@@ -165,6 +175,8 @@ namespace winrt::TerminalApp::implementation
 
             if (page && tab)
             {
+                page->_DebugTabControlEvent(fmt::format(FMT_COMPILE(L"tab-close-requested-event index={}"),
+                                                        page->_GetTabIndex(*tab).value_or(UINT32_MAX)));
                 page->_HandleCloseTabRequested(*tab);
             }
         });
@@ -176,6 +188,8 @@ namespace winrt::TerminalApp::implementation
 
             if (page && tab)
             {
+                page->_DebugTabControlEvent(fmt::format(FMT_COMPILE(L"tab-closed-event index={}"),
+                                                        page->_GetTabIndex(*tab).value_or(UINT32_MAX)));
                 page->_RemoveTab(*tab);
             }
         });
@@ -191,7 +205,9 @@ namespace winrt::TerminalApp::implementation
 
         // This kicks off TabView::SelectionChanged, in response to which
         // we'll attach the terminal's Xaml control to the Xaml root.
+        _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"initialize-tab-select index={}"), insertPosition));
         _tabView.SelectedItem(tabViewItem);
+        _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"initialize-tab-complete index={}"), insertPosition));
     }
 
     // Method Description:
@@ -201,12 +217,17 @@ namespace winrt::TerminalApp::implementation
     // - insertPosition: Optional parameter to indicate the position of tab.
     TerminalApp::Tab TerminalPage::_CreateNewTabFromPane(std::shared_ptr<Pane> pane, uint32_t insertPosition)
     {
+        _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"create-new-tab-from-pane begin index={} hasPane={}"),
+                                          insertPosition,
+                                          pane ? 1 : 0));
         if (pane)
         {
             auto newTabImpl = winrt::make_self<Tab>(pane);
             _InitializeTab(newTabImpl, insertPosition);
+            _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"create-new-tab-from-pane complete index={}"), insertPosition));
             return *newTabImpl;
         }
+        _DebugTabControlEvent(L"create-new-tab-from-pane skipped-null-pane");
         return nullptr;
     }
 
@@ -225,6 +246,23 @@ namespace winrt::TerminalApp::implementation
 
             tab.UpdateIcon(icon, iconStyle);
         }
+    }
+
+    void TerminalPage::_DebugTabControlEvent(std::wstring_view event) const
+    {
+        const auto selectedIndex = _tabView ? _tabView.SelectedIndex() : -1;
+        const auto tabItems = _tabView ? _tabView.TabItems().Size() : 0u;
+        const auto visible = _tabView && _tabView.Visibility() == Visibility::Visible;
+
+        OutputDebugStringW(fmt::format(FMT_COMPILE(L"[TabControls] {} tabs={} viewItems={} selected={} visible={} removing={} rearranging={}\n"),
+                                       event,
+                                       _tabs.Size(),
+                                       tabItems,
+                                       selectedIndex,
+                                       visible,
+                                       _removing,
+                                       _rearranging)
+                               .c_str());
     }
 
     // Method Description:
@@ -288,6 +326,8 @@ namespace winrt::TerminalApp::implementation
                 _tabRow.Height(isVisible ? NAN : 0);
             }
         }
+
+        _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"update-tab-view visible={}"), isVisible));
     }
 
     // Method Description:
@@ -425,6 +465,9 @@ namespace winrt::TerminalApp::implementation
     // - tab: the tab to remove
     winrt::Windows::Foundation::IAsyncAction TerminalPage::_HandleCloseTabRequested(winrt::TerminalApp::Tab tab)
     {
+        _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"handle-close-tab-requested begin index={} readOnly={}"),
+                                          _GetTabIndex(tab).value_or(UINT32_MAX),
+                                          tab.ReadOnly()));
         winrt::com_ptr<TerminalPage> strong;
 
         if (tab.ReadOnly())
@@ -438,13 +481,23 @@ namespace winrt::TerminalApp::implementation
             // If the user didn't explicitly click on close tab - leave
             if (!strong || warningResult != ContentDialogResult::Primary)
             {
+                if (strong)
+                {
+                    strong->_DebugTabControlEvent(fmt::format(FMT_COMPILE(L"handle-close-tab-requested cancelled index={}"),
+                                                              strong->_GetTabIndex(tab).value_or(UINT32_MAX)));
+                }
                 co_return;
             }
+
+            strong->_DebugTabControlEvent(fmt::format(FMT_COMPILE(L"handle-close-tab-requested confirmed-readonly index={}"),
+                                                      strong->_GetTabIndex(tab).value_or(UINT32_MAX)));
         }
 
         auto t = winrt::get_self<implementation::Tab>(tab);
         auto actions = t->BuildStartupActions(BuildStartupKind::None);
         _AddPreviouslyClosedPaneOrTab(std::move(actions));
+        _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"handle-close-tab-requested closing index={}"),
+                                          _GetTabIndex(tab).value_or(UINT32_MAX)));
 
         tab.Close();
     }
@@ -457,8 +510,11 @@ namespace winrt::TerminalApp::implementation
         if (!_tabs.IndexOf(tab, tabIndex))
         {
             // The tab is already removed
+            _DebugTabControlEvent(L"remove-tab-skip-missing");
             return;
         }
+
+        _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"remove-tab-begin index={}"), tabIndex));
 
         // We use _removing flag to suppress _OnTabSelectionChanged events
         // that might get triggered while removing
@@ -490,6 +546,7 @@ namespace winrt::TerminalApp::implementation
         _tabs.RemoveAt(tabIndex);
         _tabView.TabItems().RemoveAt(tabIndex);
         _UpdateTabIndices();
+        _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"remove-tab-collections-updated index={}"), tabIndex));
 
         // To close the window here, we need to close the hosting window.
         if (_tabs.Size() == 0)
@@ -499,6 +556,7 @@ namespace winrt::TerminalApp::implementation
             // Do this only if we are the last window; the monarch will notice
             // we are missing and remove us that way otherwise.
             CloseWindowRequested.raise(*this, nullptr);
+            _DebugTabControlEvent(L"remove-tab-close-window");
         }
         else if (focusedTabIndex.has_value() && focusedTabIndex.value() == gsl::narrow_cast<uint32_t>(tabIndex))
         {
@@ -513,6 +571,8 @@ namespace winrt::TerminalApp::implementation
                 const auto newSelectedTab = _mruTabs.GetAt(0);
                 _UpdatedSelectedTab(newSelectedTab);
                 _tabView.SelectedItem(newSelectedTab.TabViewItem());
+                _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"remove-tab-select-mru index={}"),
+                                                  _GetTabIndex(newSelectedTab).value_or(UINT32_MAX)));
             }
             else
             {
@@ -539,6 +599,7 @@ namespace winrt::TerminalApp::implementation
                 // selected item at all, which can make things like ClosePane not
                 // work correctly.
                 _tabView.SelectedItem(newSelectedTab.TabViewItem());
+                _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"remove-tab-select-adjacent index={}"), newSelectedIndex));
             }
         }
 
@@ -550,6 +611,8 @@ namespace winrt::TerminalApp::implementation
             _rearrangeFrom = std::nullopt;
             _rearrangeTo = std::nullopt;
         }
+
+        _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"remove-tab-complete index={}"), tabIndex));
     }
 
     // Method Description:
@@ -599,6 +662,7 @@ namespace winrt::TerminalApp::implementation
         tabIndex = std::clamp(tabIndex, 0u, _tabs.Size() - 1);
 
         auto tab{ _tabs.GetAt(tabIndex) };
+        _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"select-tab index={}"), tabIndex));
         // GH#11107 - Always just set the item directly first so that if
         // tab movement is done as part of multiple actions following calls
         // to _GetFocusedTab will return the correct tab.
@@ -730,6 +794,7 @@ namespace winrt::TerminalApp::implementation
             uint32_t tabIndex{};
             if (_tabs.IndexOf(tab, tabIndex))
             {
+                _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"set-focused-tab index={}"), tabIndex));
                 _tabView.SelectedItem(tab.TabViewItem());
             }
         }
@@ -858,8 +923,10 @@ namespace winrt::TerminalApp::implementation
     // - Close the tab at the given index.
     void TerminalPage::_CloseTabAtIndex(uint32_t index)
     {
+        _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"close-tab-at-index index={}"), index));
         if (index >= _tabs.Size())
         {
+            _DebugTabControlEvent(L"close-tab-at-index-out-of-range");
             return;
         }
         if (auto tab{ _tabs.GetAt(index) })
@@ -875,6 +942,7 @@ namespace winrt::TerminalApp::implementation
     safe_void_coroutine TerminalPage::_RemoveTabs(const std::vector<winrt::TerminalApp::Tab> tabs)
     {
         const auto weak = get_weak();
+        _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"remove-tabs-begin count={}"), tabs.size()));
 
         for (auto& tab : tabs)
         {
@@ -886,11 +954,14 @@ namespace winrt::TerminalApp::implementation
 
             if (!action)
             {
+                _DebugTabControlEvent(L"remove-tabs-no-action");
                 co_return;
             }
 
             co_await action;
         }
+
+        _DebugTabControlEvent(L"remove-tabs-complete");
     }
     // Method Description:
     // - Responds to changes in the TabView's item list by changing the
@@ -921,6 +992,9 @@ namespace winrt::TerminalApp::implementation
         {
             p.Visibility(Visibility::Collapsed);
         }
+        _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"tab-items-changed change={} index={}"),
+                                          gsl::narrow_cast<int>(eventArgs.CollectionChange()),
+                                          eventArgs.Index()));
         _UpdateTabView();
     }
 
@@ -930,6 +1004,8 @@ namespace winrt::TerminalApp::implementation
         {
             return;
         }
+
+        _DebugTabControlEvent(L"tab-middle-click-pressed");
 
         const auto tabViewItem = sender.try_as<MUX::Controls::TabViewItem>();
         if (!tabViewItem || !tabViewItem.CapturePointer(e.Pointer()))
@@ -960,6 +1036,7 @@ namespace winrt::TerminalApp::implementation
 
             if (!_tabItemMiddleClickExited && !e.GetCurrentPoint(nullptr).Properties().IsMiddleButtonPressed())
             {
+                _DebugTabControlEvent(L"tab-middle-click-close-requested");
                 _OnTabPointerReleasedCloseTab(std::move(sender));
             }
 
@@ -970,6 +1047,7 @@ namespace winrt::TerminalApp::implementation
 
     safe_void_coroutine TerminalPage::_OnTabPointerReleasedCloseTab(IInspectable sender)
     {
+        _DebugTabControlEvent(L"tab-middle-click-release-begin");
         // WinUI asynchronously updates its tab view items, so it may happen that we're given a
         // `TabViewItem` that still contains a `Tab` which has actually already been removed.
         // First we must yield once, to flush out whatever TabView is currently doing.
@@ -978,24 +1056,30 @@ namespace winrt::TerminalApp::implementation
         const auto strong = weak.get();
         if (!strong)
         {
+            _DebugTabControlEvent(L"tab-middle-click-release-page-gone");
             co_return;
         }
 
         const auto tab = _GetTabByTabViewItem(sender);
         if (!tab)
         {
+            _DebugTabControlEvent(L"tab-middle-click-release-missing-tab");
             co_return;
         }
 
         // `tab.Shutdown()` in `_RemoveTab()` sets the content to null = This checks if the tab is closed.
         if (tab.Content())
         {
+            _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"tab-middle-click-release-close index={}"),
+                                              _GetTabIndex(tab).value_or(UINT32_MAX)));
             _HandleCloseTabRequested(tab);
         }
     }
 
     void TerminalPage::_UpdatedSelectedTab(const winrt::TerminalApp::Tab& tab)
     {
+        _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"updated-selected-tab index={}"),
+                                          _GetTabIndex(tab).value_or(UINT32_MAX)));
         // Unfocus all the tabs.
         for (const auto& tab : _tabs)
         {
@@ -1064,6 +1148,7 @@ namespace winrt::TerminalApp::implementation
         {
             auto tabView = sender.as<MUX::Controls::TabView>();
             auto selectedIndex = tabView.SelectedIndex();
+            _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"selection-changed index={}"), selectedIndex));
             if (selectedIndex >= 0 && selectedIndex < gsl::narrow_cast<int32_t>(_tabs.Size()))
             {
                 const auto tab{ _tabs.GetAt(selectedIndex) };

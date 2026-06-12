@@ -671,6 +671,7 @@ namespace winrt::TerminalApp::implementation
         _newTabButton.Click([weakThis{ get_weak() }](auto&&, auto&&) {
             if (auto page{ weakThis.get() })
             {
+                page->_DebugTabControlEvent(L"new-tab-button-click");
                 TraceLoggingWrite(
                     g_hTerminalAppProvider,
                     "NewTabMenuDefaultButtonClicked",
@@ -848,9 +849,11 @@ namespace winrt::TerminalApp::implementation
     safe_void_coroutine TerminalPage::_NewTerminalByDrop(const Windows::Foundation::IInspectable&, winrt::Windows::UI::Xaml::DragEventArgs e)
     try
     {
+        _DebugTabControlEvent(L"new-tab-button-drop-begin");
         const auto data = e.DataView();
         if (!data.Contains(StandardDataFormats::StorageItems()))
         {
+            _DebugTabControlEvent(L"new-tab-button-drop-no-storage-items");
             co_return;
         }
 
@@ -859,8 +862,11 @@ namespace winrt::TerminalApp::implementation
         const auto strongThis = weakThis.get();
         if (!strongThis)
         {
+            _DebugTabControlEvent(L"new-tab-button-drop-page-gone");
             co_return;
         }
+
+        _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"new-tab-button-drop-items count={}"), items.Size()));
 
         TraceLoggingWrite(
             g_hTerminalAppProvider,
@@ -881,8 +887,12 @@ namespace winrt::TerminalApp::implementation
 
             NewTerminalArgs args;
             args.StartingDirectory(directory);
+            _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"new-tab-button-drop-open directory={}"),
+                                              directory.c_str()));
             _OpenNewTerminalViaDropdown(args);
         }
+
+        _DebugTabControlEvent(L"new-tab-button-drop-complete");
     }
     CATCH_LOG()
 
@@ -1538,9 +1548,12 @@ namespace winrt::TerminalApp::implementation
         toolTip.Content(textBlock);
         WUX::Controls::ToolTipService::SetToolTip(profileMenuItem, toolTip);
 
-        profileMenuItem.Click([profileIndex, weakThis{ get_weak() }](auto&&, auto&&) {
+        profileMenuItem.Click([profileIndex, profileName, weakThis{ get_weak() }](auto&&, auto&&) {
             if (auto page{ weakThis.get() })
             {
+                page->_DebugTabControlEvent(fmt::format(FMT_COMPILE(L"new-tab-flyout-profile-click index={} name={}"),
+                                                        profileIndex,
+                                                        profileName.c_str()));
                 TraceLoggingWrite(
                     g_hTerminalAppProvider,
                     "NewTabMenuItemClicked",
@@ -1593,9 +1606,11 @@ namespace winrt::TerminalApp::implementation
             actionMenuItem.Icon(icon);
         }
 
-        actionMenuItem.Click([action, weakThis{ get_weak() }](auto&&, auto&&) {
+        actionMenuItem.Click([action, actionId, weakThis{ get_weak() }](auto&&, auto&&) {
             if (auto page{ weakThis.get() })
             {
+                page->_DebugTabControlEvent(fmt::format(FMT_COMPILE(L"new-tab-flyout-action-click id={}"),
+                                                        actionId.c_str()));
                 TraceLoggingWrite(
                     g_hTerminalAppProvider,
                     "NewTabMenuItemClicked",
@@ -1633,6 +1648,7 @@ namespace winrt::TerminalApp::implementation
     // Shows the dropdown flyout.
     void TerminalPage::_OpenNewTabDropdown()
     {
+        _DebugTabControlEvent(L"new-tab-dropdown-open");
         _newTabButton.Flyout().ShowAt(_newTabButton);
     }
 
@@ -1664,6 +1680,14 @@ namespace winrt::TerminalApp::implementation
                         WI_IsFlagSet(lAltState, CoreVirtualKeyStates::Down) &&
                         WI_IsFlagSet(rAltState, CoreVirtualKeyStates::Down);
 
+        const auto profileIndex = newTerminalArgs.ProfileIndex();
+        _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"open-via-dropdown begin alt={} shift={} ctrl={} debugTap={} profileIndex={}"),
+                                          altPressed,
+                                          shiftPressed,
+                                          ctrlPressed,
+                                          debugTap,
+                                          profileIndex ? static_cast<int64_t>(profileIndex.Value()) : -1));
+
         const auto dispatchToElevatedWindow = ctrlPressed && !IsRunningElevated();
 
         auto sessionType = "";
@@ -1683,11 +1707,13 @@ namespace winrt::TerminalApp::implementation
 
             if (dispatchToElevatedWindow)
             {
+                _DebugTabControlEvent(L"open-via-dropdown dispatch-elevated-window");
                 _OpenElevatedWT(newTerminalArgs);
                 sessionType = "ElevatedWindow";
             }
             else
             {
+                _DebugTabControlEvent(L"open-via-dropdown dispatch-new-window");
                 _OpenNewWindow(newTerminalArgs);
                 sessionType = "Window";
             }
@@ -1700,10 +1726,12 @@ namespace winrt::TerminalApp::implementation
             // nothing then.
             if (!newPane)
             {
+                _DebugTabControlEvent(L"open-via-dropdown null-pane");
                 return;
             }
             if (altPressed && !debugTap)
             {
+                _DebugTabControlEvent(L"open-via-dropdown dispatch-split-pane");
                 this->_SplitPane(_GetFocusedTabImpl(),
                                  SplitDirection::Automatic,
                                  0.5f,
@@ -1712,6 +1740,7 @@ namespace winrt::TerminalApp::implementation
             }
             else
             {
+                _DebugTabControlEvent(L"open-via-dropdown dispatch-new-tab");
                 _CreateNewTabFromPane(newPane);
                 sessionType = "Tab";
             }
@@ -1725,6 +1754,9 @@ namespace winrt::TerminalApp::implementation
             TraceLoggingValue(sessionType, "SessionType", "The type of session that was created"),
             TraceLoggingKeyword(MICROSOFT_KEYWORD_MEASURES),
             TelemetryPrivacyDataTag(PDT_ProductAndServiceUsage));
+
+        _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"open-via-dropdown complete sessionType={}"),
+                                          winrt::to_hstring(sessionType).c_str()));
     }
 
     std::wstring TerminalPage::_evaluatePathForCwd(const std::wstring_view path)
@@ -3730,7 +3762,13 @@ namespace winrt::TerminalApp::implementation
         const auto tabViewItem = eventArgs.Tab();
         if (auto tab{ _GetTabByTabViewItem(tabViewItem) })
         {
+            _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"tab-close-button-click index={}"),
+                                              _GetTabIndex(tab).value_or(UINT32_MAX)));
             _HandleCloseTabRequested(tab);
+        }
+        else
+        {
+            _DebugTabControlEvent(L"tab-close-button-click-missing-tab");
         }
     }
 
