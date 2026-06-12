@@ -151,11 +151,13 @@ namespace winrt::TerminalApp::implementation
         });
 
         auto tabViewItem = newTabImpl->TabViewItem();
-        _tabView.TabItems().InsertAt(insertPosition, tabViewItem);
-        _DebugSideTabEvent(fmt::format(FMT_COMPILE(L"tab-inserted index={}"), insertPosition));
 
-        // Set this tab's icon to the icon from the content
+        // Finish configuring the item before inserting it into the live TabView.
+        // Side tabs are especially sensitive to synchronous layout churn while
+        // an item is being added.
+        _DebugSideTabEvent(fmt::format(FMT_COMPILE(L"prepare-tab-icon-begin index={}"), insertPosition));
         _UpdateTabIcon(*newTabImpl);
+        _DebugSideTabEvent(fmt::format(FMT_COMPILE(L"prepare-tab-icon-complete index={}"), insertPosition));
 
         tabViewItem.PointerPressed({ this, &TerminalPage::_OnTabPointerPressed });
         if (_tabPosition == Settings::Model::TabPosition::Left ||
@@ -194,6 +196,10 @@ namespace winrt::TerminalApp::implementation
                 page->_FocusCurrentTab(false);
             }
         });
+
+        _DebugSideTabEvent(fmt::format(FMT_COMPILE(L"insert-new-tab-begin index={}"), insertPosition));
+        _tabView.TabItems().InsertAt(insertPosition, tabViewItem);
+        _DebugSideTabEvent(fmt::format(FMT_COMPILE(L"tab-inserted index={}"), insertPosition));
 
         // This kicks off TabView::SelectionChanged, in response to which
         // we'll attach the terminal's Xaml control to the Xaml root.
