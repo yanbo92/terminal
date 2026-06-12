@@ -197,7 +197,9 @@ namespace winrt::TerminalApp::implementation
 
         // This kicks off TabView::SelectionChanged, in response to which
         // we'll attach the terminal's Xaml control to the Xaml root.
+        _DebugSideTabEvent(fmt::format(FMT_COMPILE(L"select-new-tab-begin index={}"), insertPosition));
         _tabView.SelectedItem(tabViewItem);
+        _DebugSideTabEvent(fmt::format(FMT_COMPILE(L"select-new-tab-complete index={}"), insertPosition));
     }
 
     // Method Description:
