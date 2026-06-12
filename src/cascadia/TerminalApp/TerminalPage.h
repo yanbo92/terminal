@@ -229,6 +229,7 @@ namespace winrt::TerminalApp::implementation
 
         Microsoft::Terminal::Settings::Model::TabPosition _tabPosition{ Microsoft::Terminal::Settings::Model::TabPosition::Top };
         Windows::UI::Xaml::Controls::Border _tabStripSplitter{ nullptr };
+        double _tabStripWidth{ 200.0 };
 
         Microsoft::Terminal::Settings::Model::CascadiaSettings _settings{ nullptr };
 
@@ -350,6 +351,7 @@ namespace winrt::TerminalApp::implementation
 
         void _UpdateTitle(const Tab& tab);
         void _UpdateTabIcon(Tab& tab);
+        void _DebugSideTabEvent(std::wstring_view event) const;
         void _UpdateTabView();
         void _UpdateTabWidthMode();
         void _ApplyTabPosition();

@@ -384,6 +384,49 @@ namespace TerminalAppLocalTests
             VERIFY_ARE_EQUAL(VerticalAlignment::Stretch, page->_tabView.VerticalAlignment());
         });
 
+        const auto clickNewTabButtonAndWait = [&page]() {
+            ::details::Event queuedNewTabCreated;
+            TestOnUIThread([&page, &queuedNewTabCreated]() {
+                const auto tabsBeforeClick = page->_tabs.Size();
+                page->_HandleNewTabButtonClick();
+                VERIFY_ARE_EQUAL(tabsBeforeClick, page->_tabs.Size());
+
+                page->Dispatcher().RunAsync(CoreDispatcherPriority::Low, [&queuedNewTabCreated]() {
+                    queuedNewTabCreated.Set();
+                });
+            });
+            VERIFY_SUCCEEDED(queuedNewTabCreated.Wait());
+        };
+
+        for (auto i = 0; i < 5; ++i)
+        {
+            clickNewTabButtonAndWait();
+
+            TestOnUIThread([&page]() {
+                VERIFY_ARE_EQUAL(2u, page->_tabs.Size());
+                page->_tabs.GetAt(page->_tabs.Size() - 1).Close();
+                VERIFY_ARE_EQUAL(1u, page->_tabs.Size());
+            });
+        }
+
+        clickNewTabButtonAndWait();
+        TestOnUIThread([&page]() {
+            VERIFY_ARE_EQUAL(2u, page->_tabs.Size());
+        });
+
+        clickNewTabButtonAndWait();
+        TestOnUIThread([&page]() {
+            VERIFY_ARE_EQUAL(3u, page->_tabs.Size());
+        });
+
+        TestOnUIThread([&page]() {
+            while (page->_tabs.Size() > 1)
+            {
+                page->_tabs.GetAt(page->_tabs.Size() - 1).Close();
+            }
+            VERIFY_ARE_EQUAL(1u, page->_tabs.Size());
+        });
+
         TestOnUIThread([&page]() {
             for (auto i = 0; i < 3; ++i)
             {
@@ -395,14 +438,6 @@ namespace TerminalAppLocalTests
                 focusedTab->SetTabText(i % 2 == 0 ? L"Bash" : L"/d");
             }
             VERIFY_ARE_EQUAL(4u, page->_tabs.Size());
-        });
-
-        TestOnUIThread([&page]() {
-            while (page->_tabs.Size() > 1)
-            {
-                page->_tabs.GetAt(page->_tabs.Size() - 1).Close();
-            }
-            VERIFY_ARE_EQUAL(1u, page->_tabs.Size());
         });
 
         TestOnUIThread([&page]() {
@@ -444,18 +479,7 @@ namespace TerminalAppLocalTests
             }
         });
 
-        ::details::Event queuedNewTabCreated;
-        TestOnUIThread([&page, &queuedNewTabCreated]() {
-            const auto tabsBeforeClick = page->_tabs.Size();
-            page->_HandleNewTabButtonClick();
-            VERIFY_ARE_EQUAL(tabsBeforeClick, page->_tabs.Size());
-
-            page->Dispatcher().RunAsync(CoreDispatcherPriority::Low, [&queuedNewTabCreated]() {
-                queuedNewTabCreated.Set();
-            });
-        });
-        VERIFY_SUCCEEDED(queuedNewTabCreated.Wait());
-
+        clickNewTabButtonAndWait();
         TestOnUIThread([&page]() {
             auto focusedTab = page->_GetTabImpl(page->_tabs.GetAt(page->_GetFocusedTabIndex().value()));
             focusedTab->SetTabText(L"PowerShell");

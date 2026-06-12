@@ -467,7 +467,7 @@ namespace winrt::TerminalApp::implementation
 
             // Create column definitions
             WUX::Controls::ColumnDefinition tabStripCol;
-            tabStripCol.Width(WUX::GridLengthHelper::FromPixels(200));
+            tabStripCol.Width(WUX::GridLengthHelper::FromPixels(_tabStripWidth));
             tabStripCol.MinWidth(100);
             tabStripCol.MaxWidth(400);
 
@@ -537,7 +537,9 @@ namespace winrt::TerminalApp::implementation
                     auto tabStripColIdx = (page->_tabPosition == TabPosition::Left) ? 0u : 2u;
                     auto newWidth = (page->_tabPosition == TabPosition::Left) ? (page->_splitterDragStartWidth + delta) : (page->_splitterDragStartWidth - delta);
                     newWidth = std::clamp(newWidth, 100.0, 400.0);
+                    page->_tabStripWidth = newWidth;
                     page->Root().ColumnDefinitions().GetAt(tabStripColIdx).Width(WUX::GridLengthHelper::FromPixels(newWidth));
+                    page->_DebugSideTabEvent(L"splitter-width-changed");
                     args.Handled(true);
                 }
             });
@@ -1655,6 +1657,7 @@ namespace winrt::TerminalApp::implementation
     void TerminalPage::_HandleNewTabButtonClick()
     {
         const auto modifierState = _captureDropdownModifierState();
+        _DebugSideTabEvent(L"new-tab-button-click");
 
         if (_tabPosition == Settings::Model::TabPosition::Left ||
             _tabPosition == Settings::Model::TabPosition::Right)
@@ -1662,6 +1665,7 @@ namespace winrt::TerminalApp::implementation
             Dispatcher().RunAsync(CoreDispatcherPriority::Low, [weakThis = get_weak(), modifierState]() {
                 if (auto page{ weakThis.get() })
                 {
+                    page->_DebugSideTabEvent(L"new-tab-button-dispatched");
                     page->_OpenNewTerminalViaDropdown(NewTerminalArgs{}, modifierState.altPressed, modifierState.shiftPressed, modifierState.ctrlPressed, modifierState.debugTap);
                 }
             });
@@ -1680,6 +1684,11 @@ namespace winrt::TerminalApp::implementation
 
     void TerminalPage::_OpenNewTerminalViaDropdown(const NewTerminalArgs newTerminalArgs, bool altPressed, bool shiftPressed, bool ctrlPressed, bool debugTap)
     {
+        _DebugSideTabEvent(fmt::format(FMT_COMPILE(L"open-via-dropdown alt={} shift={} ctrl={} debugTap={}"),
+                                       altPressed,
+                                       shiftPressed,
+                                       ctrlPressed,
+                                       debugTap));
         debugTap = _settings.GlobalSettings().DebugFeaturesEnabled() && debugTap;
 
         const auto dispatchToElevatedWindow = ctrlPressed && !IsRunningElevated();
@@ -1743,6 +1752,9 @@ namespace winrt::TerminalApp::implementation
             TraceLoggingValue(sessionType, "SessionType", "The type of session that was created"),
             TraceLoggingKeyword(MICROSOFT_KEYWORD_MEASURES),
             TelemetryPrivacyDataTag(PDT_ProductAndServiceUsage));
+
+        const auto sessionTypeText = winrt::to_hstring(sessionType);
+        _DebugSideTabEvent(fmt::format(FMT_COMPILE(L"open-via-dropdown-complete sessionType={}"), sessionTypeText.c_str()));
     }
 
     std::wstring TerminalPage::_evaluatePathForCwd(const std::wstring_view path)

@@ -152,6 +152,7 @@ namespace winrt::TerminalApp::implementation
 
         auto tabViewItem = newTabImpl->TabViewItem();
         _tabView.TabItems().InsertAt(insertPosition, tabViewItem);
+        _DebugSideTabEvent(fmt::format(FMT_COMPILE(L"tab-inserted index={}"), insertPosition));
 
         // Set this tab's icon to the icon from the content
         _UpdateTabIcon(*newTabImpl);
@@ -232,6 +233,25 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
+    void TerminalPage::_DebugSideTabEvent(std::wstring_view event) const
+    {
+        if (_tabPosition != Settings::Model::TabPosition::Left &&
+            _tabPosition != Settings::Model::TabPosition::Right)
+        {
+            return;
+        }
+
+        const auto selectedIndex = _tabView ? _tabView.SelectedIndex() : -1;
+        const auto visible = _tabView && _tabView.Visibility() == Visibility::Visible;
+        OutputDebugStringW(fmt::format(FMT_COMPILE(L"[SideTabs] {} tabs={} selected={} visible={} stripWidth={:.1f}\n"),
+                                       event,
+                                       _tabs.Size(),
+                                       selectedIndex,
+                                       visible,
+                                       _tabStripWidth)
+                               .c_str());
+    }
+
     // Method Description:
     // - Handle changes to the tab width set by the user
     void TerminalPage::_UpdateTabWidthMode()
@@ -284,13 +304,12 @@ namespace winrt::TerminalApp::implementation
                 if (root.ColumnDefinitions().Size() > tabStripColIdx)
                 {
                     auto col = root.ColumnDefinitions().GetAt(tabStripColIdx);
-                    if (isVisible)
+                    const auto desiredWidth = isVisible ? _tabStripWidth : 0.0;
+                    const auto currentWidth = col.Width();
+                    if (currentWidth.GridUnitType() != WUX::GridUnitType::Pixel ||
+                        currentWidth.Value() != desiredWidth)
                     {
-                        col.Width(WUX::GridLengthHelper::FromPixels(200));
-                    }
-                    else
-                    {
-                        col.Width(WUX::GridLengthHelper::FromPixels(0));
+                        col.Width(WUX::GridLengthHelper::FromPixels(desiredWidth));
                     }
                 }
             }
@@ -301,6 +320,8 @@ namespace winrt::TerminalApp::implementation
                 _tabRow.Height(isVisible ? NAN : 0);
             }
         }
+
+        _DebugSideTabEvent(fmt::format(FMT_COMPILE(L"update-tab-view visible={}"), isVisible));
     }
 
     // Method Description:
@@ -472,6 +493,7 @@ namespace winrt::TerminalApp::implementation
             // The tab is already removed
             return;
         }
+        _DebugSideTabEvent(fmt::format(FMT_COMPILE(L"remove-tab-begin index={}"), tabIndex));
 
         // We use _removing flag to suppress _OnTabSelectionChanged events
         // that might get triggered while removing
@@ -563,6 +585,8 @@ namespace winrt::TerminalApp::implementation
             _rearrangeFrom = std::nullopt;
             _rearrangeTo = std::nullopt;
         }
+
+        _DebugSideTabEvent(fmt::format(FMT_COMPILE(L"remove-tab-complete index={}"), tabIndex));
     }
 
     // Method Description:
@@ -934,6 +958,9 @@ namespace winrt::TerminalApp::implementation
         {
             p.Visibility(Visibility::Collapsed);
         }
+        _DebugSideTabEvent(fmt::format(FMT_COMPILE(L"tab-items-changed change={} index={}"),
+                                       gsl::narrow_cast<int>(eventArgs.CollectionChange()),
+                                       eventArgs.Index()));
         _UpdateTabView();
     }
 
@@ -1097,6 +1124,7 @@ namespace winrt::TerminalApp::implementation
         {
             auto tabView = sender.as<MUX::Controls::TabView>();
             auto selectedIndex = tabView.SelectedIndex();
+            _DebugSideTabEvent(fmt::format(FMT_COMPILE(L"selection-changed index={}"), selectedIndex));
             if (selectedIndex >= 0 && selectedIndex < gsl::narrow_cast<int32_t>(_tabs.Size()))
             {
                 const auto tab{ _tabs.GetAt(selectedIndex) };

@@ -39,7 +39,12 @@
         <Setter Property="ItemsPanel">
             <Setter.Value>
                 <ItemsPanelTemplate>
-                    <ItemsStackPanel Orientation="Vertical" />
+                    <!--
+                        Keep side tabs out of the recycle pool. Reusing old
+                        TabViewItem containers after repeated open/close cycles
+                        is still enough to trigger WinUI layout hangs here.
+                    -->
+                    <StackPanel Orientation="Vertical" />
                 </ItemsPanelTemplate>
             </Setter.Value>
         </Setter>
