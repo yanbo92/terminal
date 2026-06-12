@@ -306,8 +306,8 @@ namespace winrt::TerminalApp::implementation
                     auto col = root.ColumnDefinitions().GetAt(tabStripColIdx);
                     const auto desiredWidth = isVisible ? _tabStripWidth : 0.0;
                     const auto currentWidth = col.Width();
-                    if (currentWidth.GridUnitType() != WUX::GridUnitType::Pixel ||
-                        currentWidth.Value() != desiredWidth)
+                    if (currentWidth.GridUnitType != WUX::GridUnitType::Pixel ||
+                        currentWidth.Value != desiredWidth)
                     {
                         col.Width(WUX::GridLengthHelper::FromPixels(desiredWidth));
                     }
