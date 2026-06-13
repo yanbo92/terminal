@@ -212,7 +212,7 @@ namespace winrt::TerminalApp::implementation
             _tabs.Size() > 1)
         {
             auto weakThis{ get_weak() };
-            auto newTab{ *newTabImpl };
+            winrt::TerminalApp::Tab newTab{ *newTabImpl };
             _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"initialize-tab-select-deferred index={}"), insertPosition));
             Dispatcher().RunAsync(CoreDispatcherPriority::Low, [weakThis, newTab, insertPosition]() {
                 if (auto page{ weakThis.get() })
