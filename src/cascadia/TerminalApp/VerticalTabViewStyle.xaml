@@ -22,7 +22,7 @@
         <Setter Property="IsItemClickEnabled" Value="True" />
         <Setter Property="IsSwipeEnabled" Value="False" />
         <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
-        <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+        <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Visible" />
         <Setter Property="ScrollViewer.HorizontalScrollMode" Value="Disabled" />
         <Setter Property="ScrollViewer.VerticalScrollMode" Value="Enabled" />
         <Setter Property="ScrollViewer.BringIntoViewOnFocusChange" Value="False" />
