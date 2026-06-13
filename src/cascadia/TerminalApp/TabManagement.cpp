@@ -159,8 +159,9 @@ namespace winrt::TerminalApp::implementation
         });
 
         auto tabViewItem = newTabImpl->TabViewItem();
+        _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"initialize-tab-view-insert-begin index={}"), insertPosition));
         _tabView.TabItems().InsertAt(insertPosition, tabViewItem);
-        _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"initialize-tab-view-insert index={}"), insertPosition));
+        _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"initialize-tab-view-insert-complete index={}"), insertPosition));
 
         // Set this tab's icon to the icon from the content
         _UpdateTabIcon(*newTabImpl);

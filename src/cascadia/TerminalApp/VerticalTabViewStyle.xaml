@@ -18,8 +18,6 @@
     -->
     <Style x:Key="VerticalTabViewListViewStyle"
            TargetType="primitives:TabViewListView">
-        <Setter Property="HorizontalAlignment" Value="Stretch" />
-        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="TabNavigation" Value="Once" />
         <Setter Property="IsItemClickEnabled" Value="True" />
         <Setter Property="IsSwipeEnabled" Value="False" />
@@ -33,18 +31,17 @@
         <Setter Property="SingleSelectionFollowsFocus" Value="False" />
         <Setter Property="ItemContainerTransitions">
             <Setter.Value>
-                <TransitionCollection />
+                <TransitionCollection>
+                    <AddDeleteThemeTransition />
+                    <ContentThemeTransition />
+                    <ReorderThemeTransition />
+                </TransitionCollection>
             </Setter.Value>
         </Setter>
         <Setter Property="ItemsPanel">
             <Setter.Value>
                 <ItemsPanelTemplate>
-                    <!--
-                        Keep side tabs out of the recycle pool. Reusing old
-                        TabViewItem containers after repeated open/close cycles
-                        is still enough to trigger WinUI layout hangs here.
-                    -->
-                    <StackPanel Orientation="Vertical" />
+                    <ItemsStackPanel Orientation="Vertical" />
                 </ItemsPanelTemplate>
             </Setter.Value>
         </Setter>
@@ -113,10 +110,7 @@
     -->
     <Style x:Key="VerticalTabViewItemStyle"
            TargetType="mux:TabViewItem">
-        <Setter Property="Height" Value="36" />
-        <Setter Property="HorizontalAlignment" Value="Stretch" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-        <Setter Property="MinWidth" Value="0" />
         <Setter Property="UseSystemFocusVisuals" Value="{StaticResource UseSystemFocusVisuals}" />
         <Setter Property="Padding" Value="8,6,8,6" />
         <Setter Property="Template">
