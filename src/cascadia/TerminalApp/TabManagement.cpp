@@ -167,6 +167,11 @@ namespace winrt::TerminalApp::implementation
         _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"initialize-tab-icon-updated index={}"), insertPosition));
 
         tabViewItem.PointerPressed({ this, &TerminalPage::_OnTabPointerPressed });
+        if (_tabPosition == Settings::Model::TabPosition::Left ||
+            _tabPosition == Settings::Model::TabPosition::Right)
+        {
+            tabViewItem.BringIntoViewRequested({ this, &TerminalPage::_OnTabBringIntoViewRequested });
+        }
 
         // When the tab requests close, try to close it (prompt for approval, if required)
         newTabImpl->CloseRequested([weakTab, weakThis{ get_weak() }](auto&& /*s*/, auto&& /*e*/) {
@@ -1105,6 +1110,16 @@ namespace winrt::TerminalApp::implementation
         }
     }
 
+    void TerminalPage::_OnTabBringIntoViewRequested(const IInspectable& /*sender*/, const WUX::BringIntoViewRequestedEventArgs& e)
+    {
+        if (_tabPosition == Settings::Model::TabPosition::Left ||
+            _tabPosition == Settings::Model::TabPosition::Right)
+        {
+            _DebugTabControlEvent(L"tab-bring-into-view-suppressed");
+            e.Handled(true);
+        }
+    }
+
     void TerminalPage::_UpdatedSelectedTab(const winrt::TerminalApp::Tab& tab)
     {
         _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"updated-selected-tab index={}"),
@@ -1138,7 +1153,11 @@ namespace winrt::TerminalApp::implementation
                 _updateAllTabCloseButtons();
             }
 
-            tab.TabViewItem().StartBringIntoView();
+            if (_tabPosition != Settings::Model::TabPosition::Left &&
+                _tabPosition != Settings::Model::TabPosition::Right)
+            {
+                tab.TabViewItem().StartBringIntoView();
+            }
 
             // Raise an event that our title changed
             TitleChanged.raise(*this, nullptr);
