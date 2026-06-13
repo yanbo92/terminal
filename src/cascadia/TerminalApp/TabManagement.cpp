@@ -205,9 +205,38 @@ namespace winrt::TerminalApp::implementation
 
         // This kicks off TabView::SelectionChanged, in response to which
         // we'll attach the terminal's Xaml control to the Xaml root.
-        _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"initialize-tab-select index={}"), insertPosition));
-        _tabView.SelectedItem(tabViewItem);
-        _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"initialize-tab-complete index={}"), insertPosition));
+        // In vertical side-tab mode, selecting synchronously here can hang
+        // while WinUI is still processing the insertion-triggered layout pass.
+        if ((_tabPosition == Settings::Model::TabPosition::Left ||
+             _tabPosition == Settings::Model::TabPosition::Right) &&
+            _tabs.Size() > 1)
+        {
+            auto weakThis{ get_weak() };
+            auto newTab{ *newTabImpl };
+            _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"initialize-tab-select-deferred index={}"), insertPosition));
+            Dispatcher().RunAsync(CoreDispatcherPriority::Low, [weakThis, newTab, insertPosition]() {
+                if (auto page{ weakThis.get() })
+                {
+                    uint32_t tabIndex{};
+                    if (page->_tabs.IndexOf(newTab, tabIndex))
+                    {
+                        page->_DebugTabControlEvent(fmt::format(FMT_COMPILE(L"initialize-tab-select index={}"), insertPosition));
+                        page->_tabView.SelectedItem(newTab.TabViewItem());
+                        page->_DebugTabControlEvent(fmt::format(FMT_COMPILE(L"initialize-tab-complete index={}"), insertPosition));
+                    }
+                    else
+                    {
+                        page->_DebugTabControlEvent(fmt::format(FMT_COMPILE(L"initialize-tab-select-skipped index={}"), insertPosition));
+                    }
+                }
+            });
+        }
+        else
+        {
+            _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"initialize-tab-select index={}"), insertPosition));
+            _tabView.SelectedItem(tabViewItem);
+            _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"initialize-tab-complete index={}"), insertPosition));
+        }
     }
 
     // Method Description:
