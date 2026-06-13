@@ -1,0 +1,178 @@
+name: Build x64 ZIP
+
+on:
+  push:
+    branches:
+      - fix-side-tabs-hang
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-x64-zip:
+    runs-on: windows-2022
+    timeout-minutes: 240
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Set up NuGet
+        uses: NuGet/setup-nuget@v2
+
+      - name: Detect VS vcpkg or bootstrap locally
+        shell: pwsh
+        run: |
+          $vswhere = 'C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe'
+          $vsInstallRoot = & $vswhere -requires Microsoft.VisualStudio.Component.Vcpkg -property installationPath
+
+          if ([string]::IsNullOrEmpty($vsInstallRoot)) {
+            Remove-Item -Recurse -Force dep/vcpkg -ErrorAction Ignore
+            git clone https://github.com/microsoft/vcpkg dep/vcpkg
+            Push-Location dep/vcpkg
+            & .\bootstrap-vcpkg.bat
+            $vcpkgRoot = $PWD.Path
+            Pop-Location
+            Write-Host "Using vcpkg from local checkout ($vcpkgRoot)"
+          }
+          else {
+            $vcpkgRoot = Join-Path $vsInstallRoot 'VC\vcpkg'
+            Write-Host "Using vcpkg from Visual Studio installation ($vcpkgRoot)"
+          }
+
+          "VCPKG_ROOT=$vcpkgRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Generate NOTICE.html
+        shell: pwsh
+        run: .\build\scripts\Generate-ThirdPartyNotices.ps1 -MarkdownNoticePath .\NOTICE.md -OutputPath .\src\cascadia\CascadiaPackage\NOTICE.html
+
+      - name: Restore NuGet packages for build helpers
+        run: nuget restore build/packages.config -ConfigFile NuGet.config -PackagesDirectory packages
+
+      - name: Restore solution packages
+        run: msbuild OpenConsole.slnx /t:Restore /p:Platform=x64 /p:Configuration=Release
+
+      - name: Restore NuGet packages for global tools
+        run: nuget restore dep/nuget/packages.config -ConfigFile NuGet.config -PackagesDirectory packages
+
+      - name: Set latest VCToolsVersion
+        shell: pwsh
+        run: |
+          $vswhere = 'C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe'
+          $instances = [xml](& $vswhere -latest -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -include packages -format xml)
+          $packages = $instances.instances.instance.packages.package
+          $latestVCToolsVersion = ($packages | Where-Object { $_.id -eq 'Microsoft.VisualCpp.Tools.Core' }).version
+
+          $vsRoot = & $vswhere -latest -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property resolvedInstallationPath
+          $vcToolsRoot = Join-Path $vsRoot 'VC\Tools\MSVC'
+          $packageVCToolPath = Join-Path $vcToolsRoot $latestVCToolsVersion
+
+          if (-not (Test-Path $packageVCToolPath)) {
+            $latestActualVCToolsVersion = Get-ChildItem $vcToolsRoot |
+              ForEach-Object { [Version]$_.Name } |
+              Sort-Object -Descending |
+              Select-Object -First 1
+
+            if ([Version]$latestVCToolsVersion -ne $latestActualVCToolsVersion) {
+              Write-Host "VC Tools mismatch: directory=$latestActualVCToolsVersion package=$latestVCToolsVersion"
+              $latestVCToolsVersion = $latestActualVCToolsVersion.ToString(3)
+            }
+          }
+
+          Write-Host "Using VCToolsVersion=$latestVCToolsVersion"
+          "VCToolsVersion=$latestVCToolsVersion" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Build CascadiaPackage
+        shell: pwsh
+        run: |
+          $msbuildArgs = @(
+            'OpenConsole.slnx'
+            '/m'
+            '/t:Terminal\CascadiaPackage'
+            '/p:Platform=x64'
+            '/p:Configuration=Release'
+            '/p:WindowsTerminalOfficialBuild=true;WindowsTerminalBranding=Dev;PGOBuildMode=None'
+            '/bl:msbuild.binlog'
+          )
+          & msbuild @msbuildArgs
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+
+      - name: Build unpackaged x64 ZIP
+        id: package
+        shell: pwsh
+        run: |
+          $package = Get-ChildItem -Recurse -Filter 'CascadiaPackage*.msix' | Select-Object -First 1
+          if (-not $package) {
+            throw 'Could not find a built CascadiaPackage MSIX.'
+          }
+
+          $xamlAppx = Get-ChildItem 'src\cascadia\CascadiaPackage\AppPackages' -Recurse -Filter 'Microsoft.UI.Xaml*.appx' |
+            Where-Object { $_.FullName -match '\\Dependencies\\x64\\' } |
+            Select-Object -First 1
+          if (-not $xamlAppx) {
+            throw 'Could not find the x64 Microsoft.UI.Xaml dependency AppX.'
+          }
+
+          $outDir = New-Item -ItemType Directory -Path 'bin\x64\Release\_unpackaged' -Force
+          .\build\scripts\New-UnpackagedTerminalDistribution.ps1 `
+            -TerminalAppX $package.FullName `
+            -XamlAppX $xamlAppx.FullName `
+            -Destination $outDir.FullName
+
+          $zip = Get-ChildItem $outDir.FullName -Filter '*.zip' | Select-Object -First 1
+          if (-not $zip) {
+            throw 'Expected unpackaged ZIP was not produced.'
+          }
+
+          "zip_path=$($zip.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "zip_name=$($zip.Name)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Upload x64 ZIP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.zip_name }}
+          path: ${{ steps.package.outputs.zip_path }}
+
+      - name: Create x64 symbols ZIP
+        id: symbols
+        shell: pwsh
+        run: |
+          $buildRoot = (Resolve-Path 'bin\x64\Release').Path
+          $stagingDir = Join-Path $buildRoot '_symbols'
+          $zipPath = Join-Path $buildRoot 'x64-symbols.zip'
+
+          Remove-Item -Recurse -Force $stagingDir -ErrorAction Ignore
+          New-Item -ItemType Directory -Path $stagingDir | Out-Null
+
+          $pdbFiles = Get-ChildItem $buildRoot -Recurse -Filter '*.pdb' |
+            Where-Object { $_.FullName -notlike "$stagingDir*" }
+          if (-not $pdbFiles) {
+            throw 'Could not find any PDB files under bin\x64\Release.'
+          }
+
+          foreach ($pdb in $pdbFiles) {
+            $relativePath = [System.IO.Path]::GetRelativePath($buildRoot, $pdb.FullName)
+            $destination = Join-Path $stagingDir $relativePath
+            $destinationDir = Split-Path -Parent $destination
+            New-Item -ItemType Directory -Path $destinationDir -Force | Out-Null
+            Copy-Item $pdb.FullName $destination
+          }
+
+          Compress-Archive -Path (Join-Path $stagingDir '*') -DestinationPath $zipPath -Force
+
+          "zip_path=$zipPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "zip_name=x64-symbols.zip" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Upload x64 symbols artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.symbols.outputs.zip_name }}
+          path: ${{ steps.symbols.outputs.zip_path }}
