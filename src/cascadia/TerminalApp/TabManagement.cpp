@@ -217,27 +217,9 @@ namespace winrt::TerminalApp::implementation
              _tabPosition == Settings::Model::TabPosition::Right) &&
             _tabs.Size() > 1)
         {
-            auto weakThis{ get_weak() };
             winrt::TerminalApp::Tab newTab{ *newTabImpl };
             _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"initialize-tab-select-deferred index={}"), insertPosition));
-            Dispatcher().RunAsync(CoreDispatcherPriority::Low, [weakThis, newTab, insertPosition]() {
-                if (auto page{ weakThis.get() })
-                {
-                    uint32_t tabIndex{};
-                    if (page->_tabs.IndexOf(newTab, tabIndex))
-                    {
-                        page->_DebugTabControlEvent(fmt::format(FMT_COMPILE(L"initialize-tab-select index={}"), insertPosition));
-                        page->_DebugTabControlEvent(fmt::format(FMT_COMPILE(L"initialize-tab-selected-item-begin index={}"), insertPosition));
-                        page->_tabView.SelectedItem(newTab.TabViewItem());
-                        page->_DebugTabControlEvent(fmt::format(FMT_COMPILE(L"initialize-tab-selected-item-complete index={}"), insertPosition));
-                        page->_DebugTabControlEvent(fmt::format(FMT_COMPILE(L"initialize-tab-complete index={}"), insertPosition));
-                    }
-                    else
-                    {
-                        page->_DebugTabControlEvent(fmt::format(FMT_COMPILE(L"initialize-tab-select-skipped index={}"), insertPosition));
-                    }
-                }
-            });
+            _SelectNewSideTabAfterLayout(newTab);
         }
         else
         {
@@ -731,6 +713,35 @@ namespace winrt::TerminalApp::implementation
         }
 
         return true;
+    }
+
+    safe_void_coroutine TerminalPage::_SelectNewSideTabAfterLayout(const winrt::TerminalApp::Tab tab)
+    {
+        auto weakThis{ get_weak() };
+
+        // Side tabs can hang inside TabView::SelectedItem while the vertical
+        // list is still settling after an insert. Yield past the current work,
+        // then select by index once layout has had another chance to stabilize.
+        co_await wil::resume_foreground(Dispatcher(), CoreDispatcherPriority::Low);
+        co_await winrt::resume_after(std::chrono::milliseconds{ 16 });
+        co_await wil::resume_foreground(Dispatcher(), CoreDispatcherPriority::Low);
+
+        if (auto page{ weakThis.get() })
+        {
+            uint32_t tabIndex{};
+            if (page->_tabs.IndexOf(tab, tabIndex))
+            {
+                page->_DebugTabControlEvent(fmt::format(FMT_COMPILE(L"initialize-tab-select index={}"), tabIndex));
+                page->_DebugTabControlEvent(fmt::format(FMT_COMPILE(L"initialize-tab-selected-index-begin index={}"), tabIndex));
+                page->_tabView.SelectedIndex(gsl::narrow_cast<int32_t>(tabIndex));
+                page->_DebugTabControlEvent(fmt::format(FMT_COMPILE(L"initialize-tab-selected-index-complete index={}"), tabIndex));
+                page->_DebugTabControlEvent(fmt::format(FMT_COMPILE(L"initialize-tab-complete index={}"), tabIndex));
+            }
+            else
+            {
+                page->_DebugTabControlEvent(L"initialize-tab-select-skipped");
+            }
+        }
     }
 
     // Method Description:

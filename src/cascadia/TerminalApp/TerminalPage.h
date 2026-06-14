@@ -411,6 +411,7 @@ namespace winrt::TerminalApp::implementation
 
         void _HandleClosePaneRequested(std::shared_ptr<Pane> pane);
         safe_void_coroutine _SetFocusedTab(const winrt::TerminalApp::Tab tab);
+        safe_void_coroutine _SelectNewSideTabAfterLayout(const winrt::TerminalApp::Tab tab);
         safe_void_coroutine _CloseFocusedPane();
         void _ClosePanes(weak_ref<Tab> weakTab, std::vector<uint32_t> paneIds);
         winrt::Windows::Foundation::IAsyncOperation<bool> _PaneConfirmCloseReadOnly(std::shared_ptr<Pane> pane);
