@@ -227,7 +227,9 @@ namespace winrt::TerminalApp::implementation
                     if (page->_tabs.IndexOf(newTab, tabIndex))
                     {
                         page->_DebugTabControlEvent(fmt::format(FMT_COMPILE(L"initialize-tab-select index={}"), insertPosition));
+                        page->_DebugTabControlEvent(fmt::format(FMT_COMPILE(L"initialize-tab-selected-item-begin index={}"), insertPosition));
                         page->_tabView.SelectedItem(newTab.TabViewItem());
+                        page->_DebugTabControlEvent(fmt::format(FMT_COMPILE(L"initialize-tab-selected-item-complete index={}"), insertPosition));
                         page->_DebugTabControlEvent(fmt::format(FMT_COMPILE(L"initialize-tab-complete index={}"), insertPosition));
                     }
                     else
@@ -240,7 +242,9 @@ namespace winrt::TerminalApp::implementation
         else
         {
             _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"initialize-tab-select index={}"), insertPosition));
+            _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"initialize-tab-selected-item-begin index={}"), insertPosition));
             _tabView.SelectedItem(tabViewItem);
+            _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"initialize-tab-selected-item-complete index={}"), insertPosition));
             _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"initialize-tab-complete index={}"), insertPosition));
         }
     }
@@ -613,7 +617,9 @@ namespace winrt::TerminalApp::implementation
             {
                 const auto newSelectedTab = _mruTabs.GetAt(0);
                 _UpdatedSelectedTab(newSelectedTab);
+                _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"remove-tab-selected-item-begin index={}"), tabIndex));
                 _tabView.SelectedItem(newSelectedTab.TabViewItem());
+                _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"remove-tab-selected-item-complete index={}"), tabIndex));
                 _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"remove-tab-select-mru index={}"),
                                                   _GetTabIndex(newSelectedTab).value_or(UINT32_MAX)));
             }
@@ -641,7 +647,9 @@ namespace winrt::TerminalApp::implementation
                 // here. If we don't, then the TabView will technically not have a
                 // selected item at all, which can make things like ClosePane not
                 // work correctly.
+                _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"remove-tab-selected-item-begin index={}"), newSelectedIndex));
                 _tabView.SelectedItem(newSelectedTab.TabViewItem());
+                _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"remove-tab-selected-item-complete index={}"), newSelectedIndex));
                 _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"remove-tab-select-adjacent index={}"), newSelectedIndex));
             }
         }
@@ -709,7 +717,9 @@ namespace winrt::TerminalApp::implementation
         // GH#11107 - Always just set the item directly first so that if
         // tab movement is done as part of multiple actions following calls
         // to _GetFocusedTab will return the correct tab.
+        _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"select-tab-selected-item-begin index={}"), tabIndex));
         _tabView.SelectedItem(tab.TabViewItem());
+        _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"select-tab-selected-item-complete index={}"), tabIndex));
 
         if (_startupState == StartupState::InStartup)
         {
@@ -838,7 +848,9 @@ namespace winrt::TerminalApp::implementation
             if (_tabs.IndexOf(tab, tabIndex))
             {
                 _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"set-focused-tab index={}"), tabIndex));
+                _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"set-focused-tab-selected-item-begin index={}"), tabIndex));
                 _tabView.SelectedItem(tab.TabViewItem());
+                _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"set-focused-tab-selected-item-complete index={}"), tabIndex));
             }
         }
     }
@@ -1131,18 +1143,24 @@ namespace winrt::TerminalApp::implementation
 
     void TerminalPage::_UpdatedSelectedTab(const winrt::TerminalApp::Tab& tab)
     {
-        _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"updated-selected-tab index={}"),
-                                          _GetTabIndex(tab).value_or(UINT32_MAX)));
+        const auto tabIndex = _GetTabIndex(tab).value_or(UINT32_MAX);
+        _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"updated-selected-tab index={}"), tabIndex));
+        _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"updated-selected-tab-unfocus-begin index={}"), tabIndex));
         // Unfocus all the tabs.
         for (const auto& tab : _tabs)
         {
             tab.Focus(FocusState::Unfocused);
         }
+        _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"updated-selected-tab-unfocus-complete index={}"), tabIndex));
 
         try
         {
+            _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"updated-selected-tab-content-clear-begin index={}"), tabIndex));
             _tabContent.Children().Clear();
+            _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"updated-selected-tab-content-clear-complete index={}"), tabIndex));
+            _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"updated-selected-tab-content-append-begin index={}"), tabIndex));
             _tabContent.Children().Append(tab.Content());
+            _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"updated-selected-tab-content-append-complete index={}"), tabIndex));
 
             // GH#7409: If the tab switcher is open, then we _don't_ want to
             // automatically focus the new tab here. The tab switcher wants
@@ -1157,30 +1175,54 @@ namespace winrt::TerminalApp::implementation
             const auto p = CommandPaletteElement();
             if (!p || p.Visibility() != Visibility::Visible)
             {
+                _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"updated-selected-tab-focus-begin index={}"), tabIndex));
                 tab.Focus(FocusState::Programmatic);
+                _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"updated-selected-tab-focus-complete index={}"), tabIndex));
+                _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"updated-selected-tab-mru-begin index={}"), tabIndex));
                 _UpdateMRUTab(tab);
+                _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"updated-selected-tab-mru-complete index={}"), tabIndex));
+                _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"updated-selected-tab-close-buttons-begin index={}"), tabIndex));
                 _updateAllTabCloseButtons();
+                _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"updated-selected-tab-close-buttons-complete index={}"), tabIndex));
+            }
+            else
+            {
+                _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"updated-selected-tab-focus-skipped index={}"), tabIndex));
             }
 
             if (_tabPosition != Settings::Model::TabPosition::Left &&
                 _tabPosition != Settings::Model::TabPosition::Right)
             {
+                _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"updated-selected-tab-bring-into-view-begin index={}"), tabIndex));
                 tab.TabViewItem().StartBringIntoView();
+                _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"updated-selected-tab-bring-into-view-complete index={}"), tabIndex));
             }
 
             // Raise an event that our title changed
+            _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"updated-selected-tab-title-changed-begin index={}"), tabIndex));
             TitleChanged.raise(*this, nullptr);
+            _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"updated-selected-tab-title-changed-complete index={}"), tabIndex));
 
+            _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"updated-selected-tab-theme-begin index={}"), tabIndex));
             _updateThemeColors();
+            _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"updated-selected-tab-theme-complete index={}"), tabIndex));
 
             auto tabImpl = _GetTabImpl(tab);
             if (tabImpl)
             {
+                _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"updated-selected-tab-background-begin index={}"), tabIndex));
                 auto profile = tabImpl->GetFocusedProfile();
                 _UpdateBackground(profile);
+                _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"updated-selected-tab-background-complete index={}"), tabIndex));
+            }
+            else
+            {
+                _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"updated-selected-tab-background-skipped index={}"), tabIndex));
             }
 
+            _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"updated-selected-tab-priority-begin index={}"), tabIndex));
             _adjustProcessPriorityThrottled->Run();
+            _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"updated-selected-tab-priority-complete index={}"), tabIndex));
         }
         CATCH_LOG();
     }

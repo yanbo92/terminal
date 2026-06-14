@@ -322,25 +322,44 @@ namespace winrt::TerminalApp::implementation
     {
         ASSERT_UI_THREAD();
 
+        _DebugTabControlEvent(fmt::format(FMT_COMPILE(L"tab-focus-begin state={}"),
+                                          static_cast<int32_t>(focusState)),
+                              _TabViewIndex);
         _focusState = focusState;
 
         if (_focused())
         {
+            _DebugTabControlEvent(L"tab-focus-focused", _TabViewIndex);
             auto lastFocusedControl = GetActiveTerminalControl();
             if (lastFocusedControl)
             {
+                _DebugTabControlEvent(L"tab-focus-control-begin", _TabViewIndex);
                 lastFocusedControl.Focus(_focusState);
+                _DebugTabControlEvent(L"tab-focus-control-complete", _TabViewIndex);
 
                 // Update our own progress state. This will fire an event signaling
                 // that our taskbar progress changed.
+                _DebugTabControlEvent(L"tab-focus-progress-begin", _TabViewIndex);
                 _UpdateProgressState();
+                _DebugTabControlEvent(L"tab-focus-progress-complete", _TabViewIndex);
+            }
+            else
+            {
+                _DebugTabControlEvent(L"tab-focus-control-missing", _TabViewIndex);
             }
             // When we gain focus, remove the bell indicator if it is active
             if (_tabStatus.BellIndicator())
             {
+                _DebugTabControlEvent(L"tab-focus-bell-reset", _TabViewIndex);
                 ShowBellIndicator(false);
             }
         }
+        else
+        {
+            _DebugTabControlEvent(L"tab-focus-unfocused", _TabViewIndex);
+        }
+
+        _DebugTabControlEvent(L"tab-focus-complete", _TabViewIndex);
     }
 
     // Method Description:
